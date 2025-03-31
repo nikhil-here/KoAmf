@@ -4,6 +4,8 @@ import com.nikhilhere.koamf.util.AMF0ObjectKeysMustBeString
 import com.nikhilhere.koamf.util.AMF0StringTooLong
 import com.nikhilhere.koamf.amf.DataType
 import com.nikhilhere.koamf.amf.ECMAArray
+import com.nikhilhere.koamf.amf.Undefined
+import com.nikhilhere.koamf.amf.XMLDocument
 import com.nikhilhere.koamf.util.Constants.AMF0_MAX_STRING_SIZE
 import com.nikhilhere.koamf.util.InvalidAMFDataType
 import com.nikhilhere.koamf.util.toUInt16
@@ -26,9 +28,26 @@ class Amf0Encoder : Encoder {
             is LocalDateTime -> encodeDate(data)
             is List<*> -> encodeStrictArray(data)
             is ECMAArray -> encodeECMAArray(data)
+            is XMLDocument -> encodeXmlDocument(data)
+            is Undefined -> encodeUndefined(data)
             null -> encodeNull()
             else -> encodeUnsupported()
         }
+    }
+
+    private fun encodeUndefined(data: Undefined): ByteArray {
+        return byteArrayOf(DataType.UNDEFINED.marker)
+    }
+
+    private fun encodeXmlDocument(document : XMLDocument): ByteArray {
+        val utf8Bytes = document.data.toByteArray(Charsets.UTF_8)
+        val output = ByteBuffer
+            .allocate(5 + utf8Bytes.size)
+            .put(DataType.XML_DOCUMENT.marker)
+            .put(utf8Bytes.size.toUInt32())
+            .put(utf8Bytes)
+            .array()
+        return output
     }
 
     private fun encodeECMAArray(data: ECMAArray): ByteArray {

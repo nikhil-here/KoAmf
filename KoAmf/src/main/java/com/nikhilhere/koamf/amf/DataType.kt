@@ -54,14 +54,21 @@ enum class DataType(val marker: Byte) {
      * UNDEFINED type.
      *
      * Represents an undefined value; no additional data is encoded.
+     * its an Invalid value in AMF and means that the value exists but has not been defined.
      */
     UNDEFINED(0x06),
 
     /**
      * REFERENCE type.
+     * Note on Reference (0x07) Support in KOAMF:
+     * In AMF0, the REFERENCE type (marker 0x07) is used to indicate that an object which has already been
+     * serialized appears again in the object graph. Instead of re-encoding the full object, a 16-bit big-endian
+     * index is written that refers back to the original object's position in the reference table. This mechanism
+     * is used to avoid redundant data and to preserve object identity, particularly when dealing with circular references.
      *
-     * Used to indicate that a previously serialized complex object is being referenced.
-     * This marker is followed by a 16-bit unsigned integer index.
+     * However, many modern applications tend to use simpler data structures and do not rely on object references
+     * for repeated objects. As a result, KOAMF does not provide support for encoding or decoding the REFERENCE type.
+     * In KOAMF, each object is fully serialized, and the reference optimization is omitted.
      */
     REFERENCE(0x07),
 
@@ -129,8 +136,12 @@ enum class DataType(val marker: Byte) {
     /**
      * TYPED_OBJECT type.
      *
-     * Represents a strongly typed object with a registered class alias.
-     * Encoded as the class name (a UTF-8 string) followed by its property name/value pairs.
+     * It's used for objects that have a registered class alias, meaning that
+     * the object includes type information (i.e. a class name) along with its properties. In practice,
+     * however, this type is rarely used since most applications rely on dynamic objects or associative
+     * arrays (ECMA Arrays) that do not include explicit type metadata.
+     *
+     * For this reason, KoAmf does not implement support for the TYPED_OBJECT type.
      */
     TYPED_OBJECT(0x10),
 }
