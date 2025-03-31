@@ -1,212 +1,146 @@
 package com.nikhilhere.koamf.encoder
 
-import com.nikhilhere.koamf.util.AMF0ObjectKeysMustBeString
-import com.nikhilhere.koamf.util.AMF0StringTooLong
-import com.nikhilhere.koamf.amf.DataType
-import com.nikhilhere.koamf.amf.ECMAArray
-import com.nikhilhere.koamf.amf.Undefined
-import com.nikhilhere.koamf.amf.XMLDocument
-import com.nikhilhere.koamf.util.Constants.AMF0_MAX_STRING_SIZE
-import com.nikhilhere.koamf.util.InvalidAMFDataType
-import com.nikhilhere.koamf.util.toUInt16
-import com.nikhilhere.koamf.util.toUInt32
-import java.nio.ByteBuffer
+import com.nikhilhere.koamf.amf.AmfData
+import com.nikhilhere.koamf.amf.v0.AmfBoolean
+import com.nikhilhere.koamf.amf.v0.AmfDate
+import com.nikhilhere.koamf.amf.v0.AmfECMAArray
+import com.nikhilhere.koamf.amf.v0.AmfNull
+import com.nikhilhere.koamf.amf.v0.AmfNumber
+import com.nikhilhere.koamf.amf.v0.AmfObject
+import com.nikhilhere.koamf.amf.v0.AmfStrictArray
+import com.nikhilhere.koamf.amf.v0.AmfString
+import com.nikhilhere.koamf.amf.v0.AmfUndefined
+import com.nikhilhere.koamf.amf.v0.AmfUnsupported
+import com.nikhilhere.koamf.amf.v0.AmfXmlDocument
+import com.nikhilhere.koamf.util.AMFObjectKeysMustBeString
+import com.nikhilhere.koamf.util.UnsupportedKotlinDataTypeException
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.time.LocalDateTime
-import java.time.ZoneOffset
-import kotlin.collections.component1
-import kotlin.collections.component2
 
+/**
+ * The [Amf0Encoder] class is responsible for converting Kotlin data types into their
+ * corresponding AMF0 representations and writing them to an output stream, as well as
+ * reading AMF0 encoded data from an input stream and converting it back into [AmfData] objects.
+ *
+ * Supported Kotlin data types include:
+ * - Numbers (Double, Int) → [AmfNumber]
+ * - Boolean → [AmfBoolean]
+ * - String → [AmfString]
+ * - Map (with String keys) → [AmfObject]
+ * - LocalDateTime → [AmfDate]
+ * - List → [AmfStrictArray]
+ * - null → [AmfNull]
+ *
+ * If an unsupported Kotlin data type is provided, an [UnsupportedKotlinDataTypeException] is thrown.
+ *
+ * The encoder uses the helper method [AmfData.readAmfData] (defined in the companion object of [AmfData])
+ * to decode AMF values from an input stream.
+ */
 class Amf0Encoder : Encoder {
 
-    override fun <T> encode(data: T): ByteArray {
+    /**
+     * Encodes the provided Kotlin data into its corresponding AMF0 representation
+     * and writes it to the given [DataOutputStream].
+     *
+     * The method converts the Kotlin data to an [AmfData] instance via [getAmfDataFromKotlinData],
+     * writes the type marker using [AmfData.writeMarker], and then writes the data content using [AmfData.writeContent].
+     *
+     * @param data The Kotlin data to be encoded.
+     * @param outputStream The [DataOutputStream] to which the AMF0 data will be written.
+     */
+    override fun <T> encode(data: T, outputStream: DataOutputStream) {
+        val amfData = getAmfDataFromKotlinData(data)
+        amfData.writeMarker(outputStream)
+        amfData.writeContent(outputStream)
+    }
+
+    /**
+     * Reads AMF0 encoded data from the provided [DataInputStream] and returns the corresponding [AmfData] object.
+     *
+     * This method delegates to the helper function [AmfData.readAmfData], which reads the type marker,
+     * instantiates the appropriate [AmfData] subclass, and populates it by reading the content.
+     *
+     * @param input The [DataInputStream] from which the AMF0 data is read.
+     * @return The decoded [AmfData] object.
+     */
+    override fun decode(input: DataInputStream): Any? {
+        return getKotlinDataFromAmfData(AmfData.readAmfData(input))
+    }
+
+    /**
+     * Helper method that maps a given Kotlin data type to its corresponding [AmfData] representation.
+     *
+     * This method handles common Kotlin data types by instantiating the appropriate AMF data subclass:
+     * - [Double] and [Int] are mapped to [AmfNumber].
+     * - [Boolean] is mapped to [AmfBoolean].
+     * - [String] is mapped to [AmfString].
+     * - [Map] with string keys is mapped to [AmfObject]. If a map key is not a string,
+     *   an [AMFObjectKeysMustBeString] exception is thrown.
+     * - [LocalDateTime] is mapped to [AmfDate].
+     * - [List] is mapped to [AmfStrictArray].
+     * - null is mapped to [AmfNull].
+     * - Unsupported data types trigger an [UnsupportedKotlinDataTypeException].
+     *
+     * @param data The Kotlin data to be converted.
+     * @return An [AmfData] instance corresponding to the provided data.
+     * @throws UnsupportedKotlinDataTypeException if the provided data type is not supported.
+     */
+    private fun <T> getAmfDataFromKotlinData(data: T): AmfData {
         return when (data) {
-            is Double -> encodeNumber(data.toDouble())
-            is Int -> encodeNumber(data.toDouble())
-            is Boolean -> encodeBoolean(data)
-            is String -> encodeString(data)
-            is Map<*, *> -> encodeObject(data)
-            is LocalDateTime -> encodeDate(data)
-            is List<*> -> encodeStrictArray(data)
-            is ECMAArray -> encodeECMAArray(data)
-            is XMLDocument -> encodeXmlDocument(data)
-            is Undefined -> encodeUndefined(data)
-            null -> encodeNull()
-            else -> encodeUnsupported()
-        }
-    }
-
-    private fun encodeUndefined(data: Undefined): ByteArray {
-        return byteArrayOf(DataType.UNDEFINED.marker)
-    }
-
-    private fun encodeXmlDocument(document : XMLDocument): ByteArray {
-        val utf8Bytes = document.data.toByteArray(Charsets.UTF_8)
-        val output = ByteBuffer
-            .allocate(5 + utf8Bytes.size)
-            .put(DataType.XML_DOCUMENT.marker)
-            .put(utf8Bytes.size.toUInt32())
-            .put(utf8Bytes)
-            .array()
-        return output
-    }
-
-    private fun encodeECMAArray(data: ECMAArray): ByteArray {
-        val output = mutableListOf<Byte>()
-
-        //1. Write the object type marker
-        output.add(DataType.ECMA_ARRAY.marker)
-
-        //2. Write the 32-bit big-endian count of properties
-        output.addAll(data.properties.size.toUInt32().toList())
-
-        //3. Encode each key value pair
-        data.properties.forEach { (key, value) ->
-
-            val keyBytes = key.toByteArray(Charsets.UTF_8)
-            //verify that the key fits into a 16-bit length field
-            if (keyBytes.size > AMF0_MAX_STRING_SIZE) {
-                throw AMF0StringTooLong()
+            is Double -> AmfNumber(data)
+            is Int -> AmfNumber(data.toDouble())
+            is Boolean -> AmfBoolean(data)
+            is String -> AmfString(data)
+            is Map<*, *> -> {
+                val map = mutableMapOf<AmfString, AmfData>()
+                data.forEach { key, value ->
+                    val keyStr = (key as? String) ?: throw AMFObjectKeysMustBeString()
+                    val k = AmfString(keyStr)
+                    val v = getAmfDataFromKotlinData(value)
+                    map.put(k, v)
+                }
+                AmfObject(map)
             }
-
-            //write the key as a 16-bit big-endian length.
-            output.addAll(keyBytes.size.toUInt16().toList())
-            //write the UTF-8 bytes for the key
-            output.addAll(keyBytes.toList())
-
-            //Encode the property value and append it
-            output.addAll(encode(value).toList())
-
-        }
-
-        //Object End Marker
-        output.add(0x00)
-        output.add(0x00)
-        output.add(DataType.OBJECT_END.marker)
-
-        return output.toByteArray()
-    }
-
-    private fun encodeNull(): ByteArray {
-        return byteArrayOf(DataType.NULL.marker)
-    }
-
-    private fun encodeUnsupported(): ByteArray {
-        return byteArrayOf(DataType.UNSUPPORTED.marker)
-    }
-
-    private fun encodeStrictArray(data: List<*>): ByteArray {
-        val output = mutableListOf<Byte>()
-
-        //1. write the strict array type marker
-        output.add(DataType.STRICT_ARRAY.marker)
-
-        //2. write the 32-bit big-endian count of array elements
-        output.addAll(data.size.toUInt32().toList())
-
-        //3. encode each element of the array using AMF0 encoding
-        data.forEach { output.addAll(encode(it).toList()) }
-
-        return output.toByteArray()
-    }
-
-    private fun encodeDate(data: LocalDateTime): ByteArray {
-        val output = mutableListOf<Byte>()
-
-        //1. Write the Date type marker (0x0B)
-        output.add(DataType.DATE.marker)
-
-        // 2. Convert the LocalDateTime to milliseconds since epoch (UTC).
-        // Encode the double value as 8 bytes in big-endian order.
-        val millis = data.atZone(ZoneOffset.UTC).toInstant().toEpochMilli().toDouble()
-        output.addAll(
-            ByteBuffer
-                .allocate(8)
-                .putLong(millis.toRawBits())
-                .array()
-                .toList()
-        )
-
-        //3. write the 16-bit time zone value, which is set to zero
-        output.add(0x00)
-        output.add(0x00)
-
-        return output.toByteArray()
-    }
-
-    private fun encodeObject(data: Map<*, *>): ByteArray {
-        val output = mutableListOf<Byte>()
-
-        //1. Write the object type marker
-        output.add(DataType.OBJECT.marker)
-
-        data.forEach { (key, value) ->
-
-            //key must be string
-            val keyStr = (key as? String) ?: throw AMF0ObjectKeysMustBeString()
-            val keyBytes = keyStr.toByteArray(Charsets.UTF_8)
-            //verify that the key fits into a 16-bit length field
-            if (keyBytes.size > AMF0_MAX_STRING_SIZE) {
-                throw AMF0StringTooLong()
+            is LocalDateTime -> AmfDate(data)
+            is List<*> -> {
+                val amfDataList = data.map { getAmfDataFromKotlinData(it) }.toMutableList()
+                AmfStrictArray(value = amfDataList)
             }
-
-            //write the key as a 16-bit big-endian length.
-            output.addAll(keyBytes.size.toUInt16().toList())
-            //write the UTF-8 bytes for the key
-            output.addAll(keyBytes.toList())
-
-            //Encode the property value and append it
-            output.addAll(encode(value).toList())
-
+            null -> AmfNull()
+            else -> throw UnsupportedKotlinDataTypeException((data as Any).javaClass.toString())
         }
-
-        //Object End Marker
-        output.add(0x00)
-        output.add(0x00)
-        output.add(DataType.OBJECT_END.marker)
-
-        return output.toByteArray()
     }
 
-    private fun encodeString(data: String): ByteArray {
-        val utf8Bytes = data.toByteArray(Charsets.UTF_8)
-        // Check if string is within valid length for AMF0 String type.
-        if (utf8Bytes.size > AMF0_MAX_STRING_SIZE) {
-            return encodeLongString(data)
+    /**
+     * Helper method to convert an [AmfData] object back into its corresponding Kotlin data type.
+     *
+     * This method examines the specific [AmfData] subclass and extracts the underlying data:
+     * - [AmfString] returns its string value.
+     * - [AmfBoolean] returns its Boolean value.
+     * - [AmfDate] returns its [LocalDateTime] value.
+     * - [AmfECMAArray], [AmfObject], and [AmfStrictArray] return their corresponding map or list data.
+     * - [AmfNull], [AmfUndefined], and [AmfUnsupported] return null.
+     * - [AmfNumber] returns its numeric value.
+     * - [AmfXmlDocument] returns its XML string.
+     *
+     * @param data The [AmfData] object to convert.
+     * @return The corresponding Kotlin data value.
+     */
+    private fun getKotlinDataFromAmfData(data: AmfData): Any? {
+        return when (data) {
+            is AmfString -> data.value
+            is AmfBoolean -> data.value
+            is AmfDate -> data.value
+            is AmfECMAArray -> data.value
+            is AmfNull -> null
+            is AmfNumber -> data.value
+            is AmfObject -> data.value
+            is AmfStrictArray -> data.value
+            is AmfUndefined -> null
+            is AmfUnsupported -> null
+            is AmfXmlDocument -> data.value
+            else -> null
         }
-        //marker (1 byte) + length (2 bytes) + string data.
-        val output = ByteBuffer.allocate(1 + 2 + utf8Bytes.size)
-            .put(DataType.STRING.marker)
-            .put(utf8Bytes.size.toUInt16())
-            .put(utf8Bytes)
-            .array()
-        return output
     }
-
-    private fun encodeLongString(data: String) : ByteArray {
-        val utf8Bytes = data.toByteArray(Charsets.UTF_8)
-        //marker (1 byte) + length (4 bytes) + string data.
-        val output = ByteBuffer.allocate(1 + 4 + utf8Bytes.size)
-            .put(DataType.LONG_STRING.marker)
-            .put(utf8Bytes.size.toUInt32())
-            .put(utf8Bytes)
-            .array()
-        return output
-    }
-
-    private fun encodeBoolean(data: Boolean): ByteArray {
-        val output = ByteBuffer.allocate(2)
-            .put(DataType.BOOLEAN.marker)
-            .put(if (data) 0x01 else 0x00)
-            .array()
-        return output
-    }
-
-    private fun encodeNumber(data: Double): ByteArray {
-        val output = ByteBuffer.allocate(9)
-            .put(DataType.NUMBER.marker)
-            .putDouble(data)
-            .array()
-        return output
-    }
-
 }

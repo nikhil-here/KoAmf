@@ -7,7 +7,7 @@ package com.nikhilhere.koamf.amf
  * For the complete specification, see:
  * [AMF0 File Format Specification](https://rtmp.veriskope.com/pdf/amf0-file-format-specification.pdf)
  */
-enum class DataType(val marker: Byte) {
+enum class AmfDataType(val marker: Byte) {
     /**
      * NUMBER type.
      *

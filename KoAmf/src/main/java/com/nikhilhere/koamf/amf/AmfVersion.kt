@@ -14,7 +14,7 @@ package com.nikhilhere.koamf.amf
  * [AMF0 Specification](https://rtmp.veriskope.com/pdf/amf0-file-format-specification.pdf)
  * [AMF3 Specification](https://rtmp.veriskope.com/pdf/amf3-file-format-spec.pdf)
  */
-enum class Version {
+enum class AmfVersion {
     AMF0,
     AMF3
 }

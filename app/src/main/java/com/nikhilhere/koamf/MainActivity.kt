@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.nikhilhere.koamf.amf.Version
+import com.nikhilhere.koamf.amf.AmfVersion
 import com.nikhilhere.koamf.ui.theme.KoAmfTheme
 
 private const val TAG = "MainActivity"
@@ -51,9 +49,9 @@ class MainActivity : ComponentActivity() {
 
     private fun test() {
 
-        
+
         try {
-            val koAmf = KoAmf(Version.AMF0)
+            val koAmf = KoAmf(AmfVersion.AMF0)
             koAmf.encode(1)
         } catch (e: Exception) {
             Log.e(TAG, "test: ", e)
