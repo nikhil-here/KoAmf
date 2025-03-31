@@ -44,7 +44,7 @@ class AmfECMAArray(var value: MutableMap<AmfString, AmfData> = mutableMapOf()) :
      */
     override fun writeContent(output: DataOutputStream) {
         // Write the 32-bit count header.
-        output.write( value.size.toUInt32() )
+        output.write(value.size.toUInt32())
         // Write each key-value pair.
         value.forEach { (k, v) ->
             k.writeContent(output)

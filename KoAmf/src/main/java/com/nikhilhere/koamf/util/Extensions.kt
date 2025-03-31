@@ -24,7 +24,7 @@ fun Int.toUInt32(): ByteArray {
     )
 }
 
-fun InputStream.readUInt16() : Int {
+fun InputStream.readUInt16(): Int {
     val data = ByteArray(2)
     read(data)
     return data.toUInt16()

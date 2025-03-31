@@ -102,11 +102,13 @@ class Amf0Encoder : Encoder {
                 }
                 AmfObject(map)
             }
+
             is LocalDateTime -> AmfDate(data)
             is List<*> -> {
                 val amfDataList = data.map { getAmfDataFromKotlinData(it) }.toMutableList()
                 AmfStrictArray(value = amfDataList)
             }
+
             null -> AmfNull()
             else -> throw UnsupportedKotlinDataTypeException((data as Any).javaClass.toString())
         }

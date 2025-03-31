@@ -61,7 +61,8 @@ class AmfDate(var value: LocalDateTime = LocalDateTime.now()) : AmfData() {
         // Read and ignore the 16-bit time zone offset (2 bytes).
         input.read() // High byte
         input.read() // Low byte
-        this@AmfDate.value = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis.toLong()), ZoneOffset.UTC)
+        this@AmfDate.value =
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(millis.toLong()), ZoneOffset.UTC)
     }
 
     /**

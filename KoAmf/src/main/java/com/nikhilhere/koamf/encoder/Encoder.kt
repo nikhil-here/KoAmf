@@ -1,6 +1,5 @@
 package com.nikhilhere.koamf.encoder
 
-import com.nikhilhere.koamf.amf.AmfData
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
