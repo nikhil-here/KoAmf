@@ -1,6 +1,6 @@
 package com.nikhilhere.koamf
 
-import com.nikhilhere.koamf.amf.Amf0Encoder
+import com.nikhilhere.koamf.encoder.Amf0Encoder
 import com.nikhilhere.koamf.amf.Version
 
 class KoAmf(amfVersion: Version) {
