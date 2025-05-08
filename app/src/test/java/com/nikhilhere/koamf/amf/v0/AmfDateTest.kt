@@ -7,56 +7,55 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 
-
+/**
+ * Unit tests for [AmfDate].
+ */
 class AmfDateTest {
 
-
+    /**
+     * GIVEN a specific epoch-millisecond value
+     * WHEN writing an AMF Date payload
+     * THEN the output matches the expected 10-byte format
+     */
     @Test
-    fun `GIVEN an AMF Date WHEN written to output stream THEN output matches expected format`() {
-        // Given: a LocalDateTime representing 2000-01-01T00:00:00 UTC.
-        val date = LocalDateTime.ofEpochSecond(1,0, ZoneOffset.UTC)
-        val amfDate = AmfDate(date)
-        val outputStream = ByteArrayOutputStream()
-        val dataOutput = DataOutputStream(outputStream)
+    fun `writeContent should emit big-endian IEEE-754 double plus zero timezone`() {
+        // GIVEN: a Double timestamp of 2500.0 ms
+        val timestamp = 2500.0
+        val amfDate = AmfDate(timestamp)
+        val outputStream = ByteArrayOutputStream().also {
+            AmfDate(timestamp).writeContent(DataOutputStream(it))
+        }
 
-        // When: writing the content (payload) of the AmfDate.
-        amfDate.writeContent(dataOutput)
-
-        // Then: the output should match the expected byte array.
-        // Expected IEEE-754 representation for 946684800000.0 is:
-        // [0x41, 0xD2, 0x1F, 0x8C, 0x6B, 0x40, 0x00, 0x00] for the double value,
-        // followed by [0x00, 0x00] for the 16-bit time zone offset.
-        val expectedBytes = byteArrayOf(
-            0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(),
-            0x00.toByte(), 0x00.toByte()
+        // Expected payload: 8-byte double 2500.0 + 2-byte zero offset
+        val expected = byteArrayOf(
+            64, -93, -120, 0, 0, 0, 0, 0,  // 2500.0 as IEEE-754 BE
+            0, 0                          // timezone == 0
         )
-        assertArrayEquals(expectedBytes, outputStream.toByteArray())
+
+        // THEN
+        assertArrayEquals(expected, outputStream.toByteArray())
     }
 
+    /**
+     * GIVEN a 10-byte AMF Date payload
+     * WHEN reading into an AmfDate
+     * THEN the value matches the original Double
+     */
     @Test
-    fun `GIVEN an AMF Date byte array WHEN read from input stream THEN value equals expected LocalDateTime`() {
-        // Given: a byte array representing an AMF Date with epoch millis 946684800000.0 and a 0 time zone offset.
-        val bytes = byteArrayOf(
-            0x41.toByte(), 0xD2.toByte(), 0x1F.toByte(), 0x8C.toByte(),
-            0x6B.toByte(), 0x40.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0x00.toByte(), 0x00.toByte()
+    fun `readContent should parse big-endian IEEE-754 double and ignore timezone`() {
+        // GIVEN: 2500.0 encoded + zero offset
+        val payload = byteArrayOf(
+            64, -93, -120, 0, 0, 0, 0, 0,
+            0, 0
         )
-        val inputStream = ByteArrayInputStream(bytes)
-        val dataInput = DataInputStream(inputStream)
+        val dataInput = DataInputStream(ByteArrayInputStream(payload))
         val amfDate = AmfDate()
 
-        // When: reading the content (payload) of the AmfDate from the input stream.
+        // WHEN
         amfDate.readContent(dataInput)
 
-        // Then: the parsed LocalDateTime should equal 2000-01-01T00:00:00 UTC.
-        val expectedDate = LocalDateTime.ofInstant(
-            java.time.Instant.ofEpochMilli(946684800000L),
-            ZoneOffset.UTC
-        )
-        assertEquals(expectedDate, amfDate.value)
+        // THEN
+        assertEquals(2500.0, amfDate.value, 0.0)
     }
 }
